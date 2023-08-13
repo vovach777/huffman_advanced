@@ -175,12 +175,16 @@ class BitReader {
         buffer_end = buffer_ + buffer_size;
         index = 0;
     }
+    BitReader() = default;
     inline bool readBit() {
         return get_bits1();
     }
     inline auto readBits(int n) {
         return get_bits_long(n);
     }
+    // BitReader& operator=(BitReader&& other) {
+
+    // }
     // Метод для вывода данных (для проверки)
     void printBits(std::ostream & o) const {
         auto count  = size_in_bits;
@@ -205,8 +209,7 @@ class BitReader {
     const uint8_t *buffer;
     const uint8_t *buffer_end;
     size_t index;
-    public:
-    const size_t size_in_bits;
+    size_t size_in_bits;
 };
 
 inline std::ostream& operator<<(std::ostream& o, BitWriter const & a) {

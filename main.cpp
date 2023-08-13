@@ -18,30 +18,6 @@ using namespace std;
 
 
 
-// A Tree node
-template<typename T = char>
-struct Node {
-    T ch;
-    int freq;
-    Node *left, *right;
-    // Function to allocate a new tree node
-    Node(T ch, int freq, Node* left, Node* right)
-        : ch(ch), freq(freq), left(left), right(right) {}
-    bool operator<(const Node& other) const { return freq < other.freq; }
-};
-
-// Comparison object to be used to order the heap
-
-
-template<typename T = char>
-struct Node_comp {
-    
-    bool operator()(Node<T>* l, Node<T>* r) {
-        // highest priority item has lowest frequency
-        return l->freq > r->freq;
-    }
-};
-
 
 
 inline ostream& operator<<(ostream& o, vector<int> const& a) {
@@ -110,8 +86,30 @@ int catindex_to_symbol(int cat, int index ) {
 
 
 // A Tree
-template<typename T=char,typename Node=Node<T>>
+template<typename T=char>
 class Tree {
+
+// A Tree node
+struct Node {
+    T ch;
+    int freq;
+    Node *left, *right;
+    // Function to allocate a new tree node
+    Node(T ch, int freq, Node* left, Node* right)
+        : ch(ch), freq(freq), left(left), right(right) {}
+    bool operator<(const Node& other) const { return freq < other.freq; }
+};
+
+// Comparison object to be used to order the heap
+
+struct Node_comp {
+    
+    bool operator()(Node* l, Node* r) {
+        // highest priority item has lowest frequency
+        return l->freq > r->freq;
+    }
+};
+
     Node* root;
     vector<Node> pool;
     using BitCountType = uint8_t;
@@ -159,20 +157,26 @@ class Tree {
 void decodeHuffmanTree(BitReader & src)
 {
         //decode huffman table
-        DHT.clear;
+        DHT.clear();
         DHT.resize(16);
 
-        size_t poolSize = 1;
         for (int i = 0; i < 16; i++ )
         {        
             DHT[i].resize(src.readBits(8));
+            if (DHT[i].size() == 0)
+                continue;
+            cout << i << ":";
+            //cout << "DHT_" << i << ":" << DHT[i].size() << endl;
             for ( auto & value : DHT[i] ) 
             {
                 auto cat = src.readBits(4);
                 auto index = cat==0 ? 0 : src.readBits(cat);
                 value = catindex_to_symbol(cat, index);
+                cout << value << ",";
             }
+            cout << endl;
         }  
+        cout << endl;
         create_lockup_table();//need for encoder
         buildHuffmanTree();//need for decoder
         
@@ -196,6 +200,12 @@ void create_lockup_table() {
         }
         code <<= 1;
     }
+        cout << "Huffman Codes are :\n" << '\n';
+        for (const auto& pair : huffmanCode) {
+            std::bitset<std::numeric_limits<HuffmanCodeType>::digits> bs(pair.second.second);
+            auto s = bs.to_string();
+            cout << setw(4) << pair.first << " " << s.substr(s.size()-pair.second.first, pair.second.first) << " (" << (int)pair.second.first << "," << pair.second.second << ")" << endl;
+        }
 }
     // Builds Huffman Tree 
 template <typename Iterator>
@@ -214,7 +224,7 @@ auto buildHuffmanTree(Iterator begin, Iterator end) -> decltype(std::enable_if_t
         // Create a priority queue to store live nodes of
         // Huffman tree;
 
-        priority_queue<Node*, vector<Node*>, Node_comp<T>> pq;
+        priority_queue<Node*, vector<Node*>, Node_comp> pq;
 
         // Create a leaf node for each character and add it
         // to the priority queue.
@@ -253,20 +263,7 @@ auto buildHuffmanTree(Iterator begin, Iterator end) -> decltype(std::enable_if_t
         root = nullptr;
         pool.clear();
         create_lockup_table();
-        
-
-// const int MAX_BITS = 3;
-    // std::vector<int> bl_count = {0, 1, 1, 3};
-    //std::vector<int> next_code(MAX_BITS + 1);
-
-        cout << "Huffman Codes are :\n" << '\n';
-        for (const auto& pair : huffmanCode) {
-            std::bitset<std::numeric_limits<HuffmanCodeType>::digits> bs(pair.second.second);
-            auto s = bs.to_string();
-            cout << setw(4) << pair.first << " " << s.substr(s.size()-pair.second.first, pair.second.first) << " (" << (int)pair.second.first << "," << pair.second.second << ")" << endl;
-        }
-
-        buildHuffmanTree();
+         buildHuffmanTree();
     }
     //from lockuptable
     void buildHuffmanTree() {
@@ -353,20 +350,29 @@ auto buildHuffmanTree(Iterator begin, Iterator end) -> decltype(std::enable_if_t
             }
         }
     }
+    template <typename Iterator>
+    void decode(BitReader & src, Iterator begin, Iterator end) {
+        for (auto it = begin; it < end; it++) {
+            *it = decode(src);
+        }
+    }
 };
+
 
 // Huffman coding algorithm
 int main() {
-    //#define TEXT
+    #define TEXT
     #ifdef  TEXT
-    Tree tree;
+    using TheTree = Tree<>;
+    TheTree tree;
     string data = "Huffman coding is a data compression algorithm.";
     string decoded_data;
     #else
-    Tree<int> tree;
+    using TheTree = Tree<int>;
+    TTheTree tree;
     vector<int> data;
     vector<int> decoded_data;
-    for (int i=1; i<256; ++i)
+    for (int i=1; i<8; ++i)
         data.push_back(sin(i/256.0*6*2)*8);
     #endif
     
@@ -374,24 +380,30 @@ int main() {
 
     cout << "\nOriginal string was :\n" << data << '\n';
 
-    BitWriter bw;
+    BitWriter compressed_w;
+    BitWriter dht_w;
+    tree.encodeHuffmanTree(dht_w);
+    cout << "dht size = " << dht_w.size_in_bits() << " bit /  " << dht_w.size() << " bytes" << endl;
     
-    tree.encode(bw, data.begin(), data.end());
-    bw.flush();
+    tree.encode(compressed_w, data.begin(), data.end());
+    compressed_w.flush();
 
     // cout << endl
     //      << "Huffman Table is :" << endl
     //      << tree.encodeHuffmanTree() << endl;
     // print encoded string
-    cout << "\nEncoded string is :\n" << bw <<  "  (" << bw.size_in_bits() << " bits)" << endl;
+    cout << "\nEncoded string is :\n" << "  (" << compressed_w.size_in_bits() << " bit /" << compressed_w.size() << " bytes)" << endl;
 
 
     // decode the encoded string
     cout << "\nDecoded string is: \n";
 
-    BitReader br(bw.data(),bw.size(), bw.size_in_bits());
-    while (br.bit_left())
-       decoded_data.push_back( tree.decode(br) );
+    BitReader compressed_r(compressed_w.data(),compressed_w.size(), compressed_w.size_in_bits());
+    while (compressed_r.bit_left())
+       decoded_data.push_back( tree.decode(compressed_r) );
+
+     cout << decoded_data << endl;
+   
   
     if (decoded_data.size() != data.size())
         cerr << "decode fail!!!" << endl;
@@ -403,7 +415,20 @@ int main() {
             break;
          }
        }
-    cout << decoded_data;
+   
+
+    cout << "Decode by DHT loading:" << endl;
+    BitReader dht_r(dht_w.data(), dht_w.size());
+
+    TheTree decoder;
+    decoder.decodeHuffmanTree(dht_r);
+    compressed_r = BitReader(compressed_w.data(),compressed_w.size(), compressed_w.size_in_bits());
+    
+    auto data2 = data;
+    fill(data2.begin(), data2.end(), 0);
+    decoder.decode(compressed_r,data2.begin(), data2.end());
+    cout << "decoded2:" << data2 << endl;
+
     
 
 
