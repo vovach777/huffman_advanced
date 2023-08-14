@@ -15,7 +15,6 @@
 #include <vector>
 #include "bitstream.hpp"
 #include "utils.hpp"
-#endif
 
 namespace pack {
     namespace impl {
